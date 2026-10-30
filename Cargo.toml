@@ -1,0 +1,28 @@
+[package]
+name = "voicetotextn"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Push-to-talk dictation for Wayland: Super+A, speak, Super+A, the text is pasted. Offline Whisper on the CPU."
+license = "MIT"
+repository = "https://github.com/noutik/voicetotextn"
+readme = "README.md"
+keywords = ["speech-to-text", "whisper", "wayland", "dictation", "niri"]
+categories = ["accessibility", "multimedia::audio"]
+
+[dependencies]
+libpulse-binding = "2.30.1"
+libpulse-simple-binding = "2.29"
+rustfft = "6"
+rustix = { version = "1", features = ["fs", "event", "pipe", "time", "mm", "process"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+wayland-protocols-misc = { version = "0.3", features = ["client"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+whisper-rs = "0.16"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

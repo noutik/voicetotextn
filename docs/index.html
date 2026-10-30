@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>voicetotextn — offline dictation for Wayland</title>
+<meta name="description" content="Press Super+A, speak, press Super+A again: the text is pasted. Offline Whisper on the CPU, for niri, Sway, Hyprland.">
+<style>
+  :root { --bg: #0b0b0c; --fg: #f4f4f5; --dim: #9a9aa2; --line: #26262b; --card: #141417; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+  .logo { font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 10px; }
+  .logo i { display: inline-flex; gap: 3px; align-items: center; height: 22px; padding: 0 10px; border-radius: 11px; background: #000; border: 1px solid #2a2a2a; }
+  .logo i b { width: 3px; border-radius: 2px; background: var(--fg); }
+  nav a { color: var(--dim); text-decoration: none; margin-left: 18px; font-size: 15px; }
+  nav a:hover { color: var(--fg); }
+  .hero { text-align: center; padding: 40px 0 24px; }
+  h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.01em; }
+  .lead { color: var(--dim); font-size: 19px; max-width: 640px; margin: 0 auto 28px; }
+  kbd { font: 600 .85em ui-monospace, monospace; border: 1px solid #3a3a40; border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; background: #18181b; color: var(--fg); }
+  .demo { margin: 8px auto 26px; max-width: 100%; border-radius: 18px; border: 1px solid var(--line); }
+  .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 10px 22px; border-radius: 999px; border: 1px solid var(--fg); color: var(--fg); text-decoration: none; font-weight: 600; }
+  .btn.solid { background: var(--fg); color: var(--bg); }
+  .btn:hover { opacity: .85; }
+  section { padding: 34px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 24px; margin: 0 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--dim); font-size: 15.5px; }
+  table { border-collapse: collapse; width: 100%; max-width: 420px; }
+  td, th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; overflow-x: auto; font: 14px/1.5 ui-monospace, "JetBrains Mono", monospace; }
+  code { font-family: ui-monospace, monospace; font-size: .92em; }
+  ol { padding-left: 20px; } ol li { margin-bottom: 18px; }
+  .note { color: var(--dim); font-size: 15px; }
+  a { color: var(--fg); }
+  footer { padding: 30px 0 50px; color: var(--dim); font-size: 14px; border-top: 1px solid var(--line); }
+  /* Language switch without JavaScript: #ru is shown only when targeted. */
+  #ru { display: none; }
+  #ru:target { display: block; }
+  #ru:target ~ #en { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><i><b style="height:6px"></b><b style="height:12px"></b><b style="height:16px"></b><b style="height:10px"></b><b style="height:5px"></b></i>voicetotextn</div>
+    <nav><a href="#en">EN</a><a href="#ru">RU</a><a href="https://github.com/noutik/voicetotextn">GitHub</a></nav>
+  </header>
+
+  <main id="ru" lang="ru">
+    <div class="hero">
+      <h1>Говори — и текст уже в поле ввода</h1>
+      <p class="lead">Нажми <kbd>Super</kbd>+<kbd>A</kbd>, говори, нажми ещё раз. voicetotextn распознаёт речь без интернета, прямо на процессоре, и вставляет текст туда, где стоит курсор.</p>
+      <img class="demo" src="demo.gif" width="640" alt="Плашка выезжает кругом, раскрывается, слушает голос, «дышит» во время распознавания и улетает">
+      <div class="buttons">
+        <a class="btn solid" href="https://github.com/noutik/voicetotextn/releases">Скачать</a>
+        <a class="btn" href="https://github.com/noutik/voicetotextn/blob/main/README.ru.md">Инструкция</a>
+      </div>
+    </div>
+    <section>
+      <h2>Что умеет</h2>
+      <div class="grid">
+        <div class="card"><h3>Одна клавиша</h3><p>Первое нажатие — запись и маленький эквалайзер сверху экрана. Второе — текст в буфере обмена и в поле ввода.</p></div>
+        <div class="card"><h3>Без интернета</h3><p>Whisper large-v3-turbo через whisper.cpp на CPU. Звук и текст не покидают компьютер.</p></div>
+        <div class="card"><h3>Русский и английский вперемешку</h3><p>Маленькая модель за 0.25 с выбирает язык. «Запусти Docker Compose» — английские слова остаются латиницей.</p></div>
+        <div class="card"><h3>Ничего не висит в памяти</h3><p>Программа стартует по нажатию, модель грузится, пока ты уже говоришь. Слова не теряются.</p></div>
+        <div class="card"><h3>Вставка почти везде</h3><p>Буфер обмена + «выделение» + Shift+Insert: браузеры, GTK/Qt, терминалы вроде kitty.</p></div>
+        <div class="card"><h3>Escape — отмена</h3><p>Передумал — Escape во время записи, и ничего не вставится.</p></div>
+      </div>
+    </section>
+    <section>
+      <h2>Скорость</h2>
+      <p class="note">От второго нажатия до вставленного текста, Ryzen 7 7800X3D, 8 потоков:</p>
+      <table><tr><th>Речь</th><th>Ожидание</th></tr><tr><td>4–6 с</td><td>~2.3 с</td></tr><tr><td>11 с</td><td>~3 с</td></tr><tr><td>16 с</td><td>~4.5 с</td></tr><tr><td>25–30 с</td><td>~8 с</td></tr></table>
+    </section>
+    <section>
+      <h2>Установка</h2>
+      <ol>
+        <li>Собери программу (нужны Rust 1.85+, cmake, clang, pkg-config, libpulse) или скачай готовую из <a href="https://github.com/noutik/voicetotextn/releases">Releases</a>:
+<pre>git clone https://github.com/noutik/voicetotextn
+cd voicetotextn &amp;&amp; cargo build --release
+install -Dm755 target/release/voicetotextn ~/.local/bin/voicetotextn</pre></li>
+        <li>Скачай модели (874 МБ + 78 МБ):
+<pre>mkdir -p ~/.local/share/voicetotextn &amp;&amp; cd ~/.local/share/voicetotextn
+curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin
+curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin</pre></li>
+        <li>Повесь на клавишу. niri:
+<pre>Mod+A hotkey-overlay-title="Voice to text" { spawn "voicetotextn"; }</pre>
+          <span class="note">Sway: <code>bindsym $mod+a exec voicetotextn</code> · Hyprland: <code>bind = SUPER, A, exec, voicetotextn</code></span></li>
+      </ol>
+      <p class="note">Нужен Wayland-композитор с wlr-layer-shell, wlr-data-control и virtual-keyboard (niri, Sway, Hyprland…) и PipeWire или PulseAudio. GNOME не поддерживается.</p>
+    </section>
+  </main>
+
+  <main id="en">
+    <div class="hero">
+      <h1>Speak, and the text is already in the input field</h1>
+      <p class="lead">Press <kbd>Super</kbd>+<kbd>A</kbd>, speak, press it again. voicetotextn transcribes offline, right on the CPU, and pastes the text where your cursor is.</p>
+      <img class="demo" src="demo.gif" width="640" alt="The overlay slides down as a circle, unfolds, follows the voice, breathes while transcribing and flies away">
+      <div class="buttons">
+        <a class="btn solid" href="https://github.com/noutik/voicetotextn/releases">Download</a>
+        <a class="btn" href="https://github.com/noutik/voicetotextn#readme">Documentation</a>
+      </div>
+    </div>
+    <section>
+      <h2>Features</h2>
+      <div class="grid">
+        <div class="card"><h3>One hotkey</h3><p>First press: recording and a small equalizer at the top of the screen. Second press: the text lands in the clipboard and in the input field.</p></div>
+        <div class="card"><h3>Offline</h3><p>Whisper large-v3-turbo through whisper.cpp on the CPU. No audio or text leaves your computer.</p></div>
+        <div class="card"><h3>Mixed languages</h3><p>A tiny model picks the language in 0.25 s (Russian or English by default, configurable). English terms inside Russian speech stay in Latin script.</p></div>
+        <div class="card"><h3>Nothing in memory</h3><p>Starts on the key press and loads the model while you are already speaking. No words are lost.</p></div>
+        <div class="card"><h3>Pastes almost everywhere</h3><p>Clipboard + primary selection + Shift+Insert: browsers, GTK/Qt apps, terminals such as kitty.</p></div>
+        <div class="card"><h3>Escape cancels</h3><p>Changed your mind? Escape while recording, nothing is pasted.</p></div>
+      </div>
+    </section>
+    <section>
+      <h2>Speed</h2>
+      <p class="note">From the second key press to the pasted text, Ryzen 7 7800X3D, 8 threads:</p>
+      <table><tr><th>Speech</th><th>Wait</th></tr><tr><td>4–6 s</td><td>~2.3 s</td></tr><tr><td>11 s</td><td>~3 s</td></tr><tr><td>16 s</td><td>~4.5 s</td></tr><tr><td>25–30 s</td><td>~8 s</td></tr></table>
+    </section>
+    <section>
+      <h2>Install</h2>
+      <ol>
+        <li>Build it (Rust 1.85+, cmake, clang, pkg-config, libpulse) or download a binary from <a href="https://github.com/noutik/voicetotextn/releases">Releases</a>:
+<pre>git clone https://github.com/noutik/voicetotextn
+cd voicetotextn &amp;&amp; cargo build --release
+install -Dm755 target/release/voicetotextn ~/.local/bin/voicetotextn</pre></li>
+        <li>Download the models (874 MB + 78 MB):
+<pre>mkdir -p ~/.local/share/voicetotextn &amp;&amp; cd ~/.local/share/voicetotextn
+curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin
+curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin</pre></li>
+        <li>Bind a key. niri:
+<pre>Mod+A hotkey-overlay-title="Voice to text" { spawn "voicetotextn"; }</pre>
+          <span class="note">Sway: <code>bindsym $mod+a exec voicetotextn</code> · Hyprland: <code>bind = SUPER, A, exec, voicetotextn</code></span></li>
+      </ol>
+      <p class="note">Needs a Wayland compositor with wlr-layer-shell, wlr-data-control and virtual-keyboard (niri, Sway, Hyprland…) and PipeWire or PulseAudio. GNOME is not supported.</p>
+    </section>
+  </main>
+
+  <footer>MIT License · built on <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a> and OpenAI Whisper · <a href="https://github.com/noutik/voicetotextn">source on GitHub</a></footer>
+</div>
+</body>
+</html>
