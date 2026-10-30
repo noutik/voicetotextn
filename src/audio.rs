@@ -54,6 +54,20 @@ impl Recorder {
     pub fn finish(self) -> Vec<f32> {
         std::mem::take(&mut *self.samples.lock().unwrap())
     }
+
+    pub fn tap(&self) -> Tap {
+        Tap(self.samples.clone())
+    }
+}
+
+/// Lets another thread look at the recording while it goes on.
+pub struct Tap(Arc<Mutex<Vec<f32>>>);
+
+impl Tap {
+    /// Everything recorded so far (nothing once the recording is finished).
+    pub fn copy(&self) -> Vec<f32> {
+        self.0.lock().unwrap().clone()
+    }
 }
 
 impl Drop for Recorder {

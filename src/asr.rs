@@ -1,12 +1,12 @@
 //! Speech recognition with whisper.cpp on the CPU.
 
 use std::path::PathBuf;
-use std::sync::mpsc;
-use std::time::Instant;
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::{Duration, Instant};
 
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, get_lang_id};
 
-use crate::audio::RATE;
+use crate::audio::{RATE, Tap};
 use crate::{Event, Notifier};
 
 pub struct Config {
@@ -20,6 +20,9 @@ pub struct Config {
     pub language: String,
     pub prompt: Option<String>,
     pub flash_attn: bool,
+    /// Run a BF16 copy of the main model when whisper.cpp has AVX512-BF16
+    /// kernels: faster than Q8_0, but 0.75 GB more memory.
+    pub bf16: bool,
     /// Shortest encoder window in seconds; 30 keeps Whisper's full window.
     /// 10 s matched the full window on test dictations, 5–7 s duplicated or misspelled words.
     pub min_window: f32,
@@ -43,6 +46,7 @@ impl Config {
             language: var("VOICETOTEXTN_LANG").unwrap_or_else(|| "ru,en".into()),
             prompt: var("VOICETOTEXTN_PROMPT"),
             flash_attn: var("VOICETOTEXTN_FLASH").is_none_or(|v| v != "0"),
+            bf16: var("VOICETOTEXTN_BF16").is_none_or(|v| v != "0"),
             min_window: var("VOICETOTEXTN_MIN_WINDOW").and_then(|v| v.parse().ok()).unwrap_or(10.0),
             save_dir: var("VOICETOTEXTN_SAVE_DIR").map(PathBuf::from),
         }
@@ -57,27 +61,39 @@ pub struct Models {
 
 pub fn load(cfg: &Config) -> Result<Models, String> {
     whisper_rs::install_logging_hooks(); // routes whisper.cpp's chatter into the void
-    let open = |path: &std::path::Path| {
+    let open = |path: &std::path::Path, bf16: bool| {
+        let path = match bf16.then(|| crate::bf16::cached(path)) {
+            Some(Ok(Some(copy))) => copy,
+            Some(Err(e)) => {
+                log!("no BF16 copy, using the model as is: {e}");
+                path.to_path_buf()
+            }
+            _ => path.to_path_buf(),
+        };
         let mut params = WhisperContextParameters::default();
         params.flash_attn(cfg.flash_attn);
         let path = path.to_str().ok_or("model path is not UTF-8")?;
         WhisperContext::new_with_params(path, params).map_err(|e| format!("cannot load {path}: {e}"))
     };
-    let detector = if cfg.language.contains(',') { Some(open(&cfg.detector)?) } else { None };
-    Ok(Models { main: open(&cfg.model)?, detector })
+    // The detector is too small to gain anything from BF16.
+    let detector = if cfg.language.contains(',') { Some(open(&cfg.detector, false)?) } else { None };
+    Ok(Models { main: open(&cfg.model, cfg.bf16 && crate::bf16::supported())?, detector })
 }
 
-pub fn transcribe(models: &Models, cfg: &Config, audio: &[f32]) -> Result<String, String> {
-    let Some(range) = speech_bounds(audio) else {
+/// `language`: one already picked for this recording (see `Worker`).
+pub fn transcribe(models: &Models, cfg: &Config, audio: &[f32], language: Option<&str>) -> Result<String, String> {
+    let Some(audio) = speech(audio) else {
         return Ok(String::new());
     };
-    let mut audio = audio[range].to_vec();
-    // whisper.cpp refuses clips shorter than one second.
-    audio.resize(audio.len().max(RATE as usize * 11 / 10), 0.0);
-
-    let language = match &models.detector {
-        Some(detector) => pick_language(detector, cfg.threads, &audio, &cfg.language)?,
-        None => cfg.language.as_str(),
+    let language = match (language, &models.detector) {
+        (Some(language), _) => language,
+        (None, Some(detector)) => {
+            let t = Instant::now();
+            let (language, scores) = pick_language(detector, cfg.threads, &audio, &cfg.language)?;
+            log!("language {language} ({scores}) in {} ms", t.elapsed().as_millis());
+            language
+        }
+        (None, None) => cfg.language.as_str(),
     };
     let mut state = models.main.create_state().map_err(|e| e.to_string())?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
@@ -106,14 +122,23 @@ pub fn transcribe(models: &Models, cfg: &Config, audio: &[f32]) -> Result<String
     Ok(text.trim().to_string())
 }
 
-/// Asks the small model which of the `candidates` ("ru,en") the first 30 s sound like.
+/// Picks the language of the speech in `audio`, with the scores for the log.
+/// `None`: the language is fixed, or nothing was said.
+pub fn pick<'a>(models: &Models, cfg: &'a Config, audio: &[f32]) -> Result<Option<(&'a str, String)>, String> {
+    let (Some(detector), Some(speech)) = (&models.detector, speech(audio)) else {
+        return Ok(None);
+    };
+    pick_language(detector, cfg.threads, &speech, &cfg.language).map(Some)
+}
+
+/// Asks the small model which of the `candidates` ("ru,en") the first 30 s
+/// sound like. Also returns the scores, for the log.
 fn pick_language<'a>(
     detector: &WhisperContext,
     threads: i32,
     audio: &[f32],
     candidates: &'a str,
-) -> Result<&'a str, String> {
-    let t = Instant::now();
+) -> Result<(&'a str, String), String> {
     let mut state = detector.create_state().map_err(|e| e.to_string())?;
     state.pcm_to_mel(&audio[..audio.len().min(RATE as usize * 30)], threads as usize).map_err(|e| e.to_string())?;
     let (_, probs) = state.lang_detect(0, threads as usize).map_err(|e| e.to_string())?;
@@ -121,8 +146,16 @@ fn pick_language<'a>(
     let candidates = candidates.split(',').map(str::trim);
     let best = candidates.clone().max_by(|a, b| prob(a).total_cmp(&prob(b))).unwrap_or("auto");
     let scores: Vec<String> = candidates.map(|c| format!("{c} {:.2}", prob(c))).collect();
-    log!("language {best} ({}) in {} ms", scores.join(", "), t.elapsed().as_millis());
-    Ok(best)
+    Ok((best, scores.join(", ")))
+}
+
+/// The speech in a recording, padded to the length whisper.cpp accepts.
+/// `None` means nothing was said.
+fn speech(audio: &[f32]) -> Option<Vec<f32>> {
+    let mut speech = audio[speech_bounds(audio)?].to_vec();
+    // whisper.cpp refuses clips shorter than one second.
+    speech.resize(speech.len().max(RATE as usize * 11 / 10), 0.0);
+    Some(speech)
 }
 
 /// Cuts leading and trailing silence (keeping a margin), so Whisper neither
@@ -147,13 +180,15 @@ fn speech_bounds(audio: &[f32]) -> Option<std::ops::Range<usize>> {
     Some(first.saturating_sub(MARGIN) * FRAME..((last + 1 + MARGIN) * FRAME).min(audio.len()))
 }
 
-/// Loads the model in the background, then waits for the recording.
+/// Loads the model in the background, then waits for the recording. While it
+/// waits, the detector picks the language of the speech heard so far, so the
+/// stop usually only waits for the transcription.
 pub struct Worker {
     audio_tx: Option<mpsc::Sender<Vec<f32>>>,
 }
 
 impl Worker {
-    pub fn spawn(cfg: Config, notifier: Notifier) -> Worker {
+    pub fn spawn(cfg: Config, notifier: Notifier, recording: Tap) -> Worker {
         let (audio_tx, audio_rx) = mpsc::channel::<Vec<f32>>();
         std::thread::Builder::new()
             .name("asr".into())
@@ -166,12 +201,36 @@ impl Worker {
                 log!("models loaded in {} ms", t.elapsed().as_millis());
                 notifier.send(Event::ModelReady);
 
-                let Ok(audio) = audio_rx.recv() else { return }; // cancelled
+                // The last pick: samples it heard, the language and its scores.
+                // It stands while it has heard at least 3/4 of the recording.
+                let mut early: Option<(usize, &str, String)> = None;
+                let stands = |heard: usize, len: usize| 4 * heard >= 3 * len;
+                let audio = loop {
+                    match audio_rx.recv_timeout(Duration::from_millis(250)) {
+                        Ok(audio) => break audio,
+                        Err(RecvTimeoutError::Disconnected) => return, // cancelled
+                        Err(RecvTimeoutError::Timeout) if models.detector.is_none() => continue,
+                        Err(RecvTimeoutError::Timeout) => {}
+                    }
+                    let heard = recording.copy();
+                    if early.as_ref().is_some_and(|e| stands(e.0, heard.len())) {
+                        continue;
+                    }
+                    match pick(&models, &cfg, &heard) {
+                        Ok(Some((language, scores))) => early = Some((heard.len(), language, scores)),
+                        Ok(None) => {}
+                        Err(e) => log!("language while recording: {e}"),
+                    }
+                };
                 if let Some(dir) = &cfg.save_dir {
                     save(dir, &audio);
                 }
+                let language = early.filter(|e| stands(e.0, audio.len())).map(|(_, language, scores)| {
+                    log!("language {language} ({scores}) picked while recording");
+                    language
+                });
                 let t = Instant::now();
-                let result = transcribe(&models, &cfg, &audio);
+                let result = transcribe(&models, &cfg, &audio, language);
                 log!(
                     "{:.1} s of audio transcribed in {} ms",
                     audio.len() as f32 / RATE as f32,

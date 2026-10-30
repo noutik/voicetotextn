@@ -10,7 +10,7 @@ Push-to-talk dictation for Wayland. Press **Super+A**, speak, press **Super+A** 
 
 - **One hotkey.** The first press starts recording and shows a small black-and-white equalizer at the top of the screen. The second press transcribes, copies the text to the clipboard and pastes it.
 - **Offline, CPU only.** Whisper large-v3-turbo (q8_0) through whisper.cpp. No audio or text leaves your computer.
-- **Mixed languages.** A tiny Whisper model picks the language of every dictation from a short list (Russian or English by default) in about 0.25 s. English terms inside Russian speech stay in Latin script: *«Запусти Docker Compose и проверь Git статус»*.
+- **Mixed languages.** A tiny Whisper model picks the language of every dictation from a short list (Russian or English by default) while you speak. English terms inside Russian speech stay in Latin script: *«Запусти Docker Compose и проверь Git статус»*.
 - **Nothing in memory between dictations.** The program starts on the key press and loads the model while you are already speaking, so no words are lost.
 - **Escape cancels** the recording.
 - **Pastes almost everywhere.** The text goes into both the clipboard and the primary selection, then the program presses Shift+Insert: that pastes in browsers, GTK/Qt apps and terminals such as kitty.
@@ -21,12 +21,13 @@ Time from the second key press to the pasted text, Ryzen 7 7800X3D (8 threads):
 
 | Speech   | Wait    |
 |----------|---------|
-| 4–6 s    | ~2.3 s  |
-| 11 s     | ~3 s    |
-| 16 s     | ~4.5 s  |
-| 25–30 s  | ~8 s    |
+| 4–6 s    | ~1.3 s  |
+| 10–11 s  | ~1.5 s  |
+| 12–14 s  | ~1.8 s  |
+| 21 s     | ~3.8 s  |
+| 29 s     | ~5.5 s  |
 
-About 1 GB of RAM while dictating, nothing when idle.
+About 1.9 GB of RAM while dictating (1.1 GB with `VOICETOTEXTN_BF16=0`), nothing when idle.
 
 Whisper normally encodes a fixed 30 s window, even for a two-word phrase. voicetotextn shrinks the window to the length of the speech but keeps at least 10 s: in tests, windows of 5–7 s started to duplicate or misspell words, 10 s gave the same text as the full window.
 
@@ -101,6 +102,7 @@ Environment variables, for example in niri: `spawn "env" "VOICETOTEXTN_LANG=de,e
 | `VOICETOTEXTN_THREADS` | physical cores | whisper.cpp threads. |
 | `VOICETOTEXTN_PROMPT` | — | Initial prompt for Whisper. |
 | `VOICETOTEXTN_FLASH` | `1` | `0` turns flash attention off. |
+| `VOICETOTEXTN_BF16` | `1` | `0` runs the turbo model as it is, without the BF16 copy: 1.1 GB of RAM instead of 1.9 GB, slower. |
 | `VOICETOTEXTN_SAVE_DIR` | — | Save every recording there as WAV (for tests). |
 | `VOICETOTEXTN_DRY_RUN` | — | Transcribe but do not paste. |
 
@@ -109,11 +111,13 @@ Environment variables, for example in niri: `spawn "env" "VOICETOTEXTN_LANG=de,e
 - Every key press runs the binary. The first instance becomes the session and listens on an abstract unix socket; a later one only connects to it ("toggle") and exits.
 - Audio: 16 kHz mono from the default PulseAudio/PipeWire source — the rate Whisper works at.
 - Overlay: a layer-shell surface on the overlay layer, drawn in software (anti-aliased shapes) into shared memory. The bars are a 1024-point FFT spectrum, low frequencies on the left.
-- Recognition: leading and trailing silence is trimmed, the tiny model picks the language, the turbo model transcribes.
+- Recognition: while you speak, the tiny model picks the language of what has been recorded so far; after the second press leading and trailing silence is trimmed and the turbo model transcribes.
+- BF16: on CPUs with AVX512-BF16 (AMD Zen 4 and newer, Intel Xeon since Sapphire Rapids) whisper.cpp multiplies BF16 matrices faster than Q8_0 ones (the encoder takes 1.25–1.4× less time on Zen 4), so the first run converts the turbo model to BF16 into `~/.cache/voicetotextn` (1.6 GB, about a second). The prebuilt binary has no AVX512-BF16 kernels and runs the models as they are.
+- whisper.cpp is built with llamafile's matrix kernels (`GGML_LLAMAFILE`, set in `.cargo/config.toml`).
 - Paste: wlr-data-control sets the clipboard and the primary selection (no keyboard focus needed), then a virtual keyboard sends Shift+Insert. The process keeps serving the text (a few MB) until another program takes over the selection.
 - Log: `~/.local/state/voicetotextn.log` (timings only, the recognized text is not logged).
 
-Developer tools: `voicetotextn transcribe FILE.wav…` transcribes 16 kHz WAV files and prints timings; `voicetotextn demo WAV START SECONDS DIR` renders the animation above as frames.
+Developer tools: `voicetotextn transcribe FILE.wav…` transcribes 16 kHz WAV files and prints timings (the language is picked before the clock starts, as the session does while you speak); `voicetotextn demo WAV START SECONDS DIR` renders the animation above as frames.
 
 ## License
 

@@ -8,6 +8,7 @@
 mod log;
 mod asr;
 mod audio;
+mod bf16;
 mod demo;
 mod ipc;
 mod overlay;
@@ -76,7 +77,7 @@ fn session() -> ExitCode {
 
     // Start the microphone first so no words are lost while the model loads.
     let recorder = audio::Recorder::start(notifier.clone());
-    let worker = asr::Worker::spawn(asr::Config::from_env(), notifier);
+    let worker = asr::Worker::spawn(asr::Config::from_env(), notifier, recorder.tap());
 
     match overlay::run(listener, recorder, worker, rx, wake_r) {
         Ok(()) => ExitCode::SUCCESS,
@@ -106,8 +107,16 @@ fn transcribe_files(files: &[String]) -> ExitCode {
                 continue;
             }
         };
+        // Before the clock starts: the session picks the language while the user speaks.
+        let language = match asr::pick(&models, &cfg, &audio) {
+            Ok(language) => language.map(|(language, _)| language),
+            Err(e) => {
+                eprintln!("{file}: {e}");
+                continue;
+            }
+        };
         let t = Instant::now();
-        match asr::transcribe(&models, &cfg, &audio) {
+        match asr::transcribe(&models, &cfg, &audio, language) {
             Ok(text) => println!(
                 "{file} ({:.1} s audio, {:.2} s): {text}",
                 audio.len() as f32 / audio::RATE as f32,

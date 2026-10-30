@@ -1,0 +1,5 @@
+# whisper-rs-sys passes GGML_* variables to whisper.cpp's CMake build.
+[env]
+# llamafile's tiled matrix kernels (tinyBLAS), off by default in whisper.cpp:
+# with them the encoder runs 1.3-1.5x faster (Q8_0 model, Zen 4).
+GGML_LLAMAFILE = "ON"
