@@ -56,7 +56,7 @@ cargo build --release
 install -Dm755 target/release/voicetotextn ~/.local/bin/voicetotextn
 ```
 
-whisper.cpp is compiled with `-march=native`, so the binary is tuned for the CPU it was built on. Prebuilt binaries are on the [Releases](https://github.com/noutik/voicetotextn/releases) page.
+whisper.cpp is compiled with `-march=native`, so the binary is tuned for the CPU it was built on. A prebuilt binary is on the [Releases](https://github.com/noutik/voicetotextn/releases) page: x86-64 with AVX2, glibc 2.43+ (Arch and other rolling distributions); elsewhere build from source.
 
 ### 2. Models
 

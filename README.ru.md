@@ -56,7 +56,7 @@ cargo build --release
 install -Dm755 target/release/voicetotextn ~/.local/bin/voicetotextn
 ```
 
-whisper.cpp собирается с `-march=native`, то есть под процессор, на котором идёт сборка. Готовые сборки — на странице [Releases](https://github.com/noutik/voicetotextn/releases).
+whisper.cpp собирается с `-march=native`, то есть под процессор, на котором идёт сборка. Готовая сборка — на странице [Releases](https://github.com/noutik/voicetotextn/releases): x86-64 с AVX2, glibc 2.43+ (Arch и другие «плавающие» дистрибутивы); на остальных собирай из исходников.
 
 ### 2. Модели
 
