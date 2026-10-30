@@ -57,7 +57,7 @@ cargo build --release
 install -Dm755 target/release/voicetotextn ~/.local/bin/voicetotextn
 ```
 
-whisper.cpp is compiled with `-march=native`, so the binary is tuned for the CPU it was built on. A prebuilt binary is on the [Releases](https://github.com/noutik/voicetotextn/releases) page: x86-64 with AVX2, glibc 2.43+ (Arch and other rolling distributions); elsewhere build from source.
+whisper.cpp is compiled with `-march=native`, so the binary is tuned for the CPU it was built on. Prebuilt binaries are on the [Releases](https://github.com/noutik/voicetotextn/releases) page, both for glibc 2.43+ (Arch and other rolling distributions): `x86_64-linux` for any x86-64 CPU with AVX2, and `x86_64-avx512bf16-linux` for CPUs with AVX512-BF16 (AMD Zen 4 and newer, Intel Xeon since Sapphire Rapids), about 1.4× faster than the first one. Elsewhere build from source.
 
 ### 2. Models
 
@@ -112,7 +112,7 @@ Environment variables, for example in niri: `spawn "env" "VOICETOTEXTN_LANG=de,e
 - Audio: 16 kHz mono from the default PulseAudio/PipeWire source — the rate Whisper works at.
 - Overlay: a layer-shell surface on the overlay layer, drawn in software (anti-aliased shapes) into shared memory. The bars are a 1024-point FFT spectrum, low frequencies on the left.
 - Recognition: while you speak, the tiny model picks the language of what has been recorded so far; after the second press leading and trailing silence is trimmed and the turbo model transcribes.
-- BF16: on CPUs with AVX512-BF16 (AMD Zen 4 and newer, Intel Xeon since Sapphire Rapids) whisper.cpp multiplies BF16 matrices faster than Q8_0 ones (the encoder takes 1.25–1.4× less time on Zen 4), so the first run converts the turbo model to BF16 into `~/.cache/voicetotextn` (1.6 GB, about a second). The prebuilt binary has no AVX512-BF16 kernels and runs the models as they are.
+- BF16: on CPUs with AVX512-BF16 (AMD Zen 4 and newer, Intel Xeon since Sapphire Rapids) whisper.cpp multiplies BF16 matrices faster than Q8_0 ones (the encoder takes 1.25–1.4× less time on Zen 4), so the first run converts the turbo model to BF16 into `~/.cache/voicetotextn` (1.6 GB, about a second). Of the prebuilt binaries only `x86_64-avx512bf16-linux` has these kernels; the AVX2 one runs the models as they are.
 - whisper.cpp is built with llamafile's matrix kernels (`GGML_LLAMAFILE`, set in `.cargo/config.toml`).
 - Paste: wlr-data-control sets the clipboard and the primary selection (no keyboard focus needed), then a virtual keyboard sends Shift+Insert. The process keeps serving the text (a few MB) until another program takes over the selection.
 - Log: `~/.local/state/voicetotextn.log` (timings only, the recognized text is not logged).
