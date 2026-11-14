@@ -26,6 +26,11 @@ use crate::scene::{self, Mode, Scene};
 use crate::spectrum::FFT_LEN;
 use crate::{Event, ipc};
 
+/// How long the microphone stays open after the second Super+A. The key
+/// usually lands on the tail of the last word, and the newest sound is still
+/// on its way through the audio server: on test clips cut right at the last
+/// sound the last word came out wrong or missing in 1 of 10.
+const POST_ROLL: Duration = Duration::from_millis(250);
 /// Time for the focus to get back to the window before Shift+Insert is sent.
 const PASTE_DELAY: Duration = Duration::from_millis(150);
 /// Hide anyway if frame callbacks stop (e.g. the screen is off).
@@ -55,6 +60,8 @@ pub struct State {
     last_frame: Instant,
     model_ready: bool,
     keyboard_released: Option<Instant>,
+    /// When the recording, already stopped by the user, really ends.
+    stop_due: Option<Instant>,
     pending_text: Option<String>,
     recorder: Option<Recorder>,
     worker: Worker,
@@ -114,6 +121,7 @@ pub fn run(
         last_frame: now,
         model_ready: false,
         keyboard_released: None,
+        stop_due: None,
         pending_text: None,
         recorder: Some(recorder),
         worker,
@@ -175,14 +183,12 @@ pub fn run(
 }
 
 impl State {
-    /// Second Super+A: stop recording and transcribe.
+    /// Second Super+A: stop recording (after `POST_ROLL`) and transcribe.
     fn toggle(&mut self) {
         if self.phase != Phase::Recording {
             return;
         }
-        let audio = self.recorder.take().map(Recorder::finish).unwrap_or_default();
-        log!("stop: {:.1} s recorded", audio.len() as f32 / RATE as f32);
-        self.worker.submit(audio);
+        self.stop_due = Some(Instant::now() + POST_ROLL);
         self.phase = Phase::Transcribing;
         self.release_keyboard();
     }
@@ -253,6 +259,19 @@ impl State {
     fn tick(&mut self) -> Option<Duration> {
         let now = Instant::now();
         let mut wait = None;
+        if let Some(due) = self.stop_due {
+            if now < due {
+                wait = Some(due - now);
+            } else {
+                self.stop_due = None;
+                // Gone already if the session failed in the meantime.
+                if let Some(recorder) = self.recorder.take() {
+                    let audio = recorder.finish();
+                    log!("stop: {:.1} s recorded", audio.len() as f32 / RATE as f32);
+                    self.worker.submit(audio);
+                }
+            }
+        }
         if self.pending_text.is_some() {
             let due = self.keyboard_released.unwrap_or(now) + PASTE_DELAY;
             if now >= due {

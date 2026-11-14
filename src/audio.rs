@@ -61,12 +61,15 @@ impl Recorder {
 }
 
 /// Lets another thread look at the recording while it goes on.
-pub struct Tap(Arc<Mutex<Vec<f32>>>);
+pub struct Tap(pub Arc<Mutex<Vec<f32>>>);
 
 impl Tap {
-    /// Everything recorded so far (nothing once the recording is finished).
-    pub fn copy(&self) -> Vec<f32> {
-        self.0.lock().unwrap().clone()
+    /// Appends to `heard` what was recorded since it was last filled.
+    pub fn extend(&self, heard: &mut Vec<f32>) {
+        let samples = self.0.lock().unwrap();
+        if let Some(new) = samples.get(heard.len()..) {
+            heard.extend_from_slice(new);
+        }
     }
 }
 

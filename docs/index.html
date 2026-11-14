@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>voicetotextn — offline dictation for Wayland</title>
-<meta name="description" content="Press Super+A, speak, press Super+A again: the text is pasted. Offline Whisper on the CPU, for niri, Sway, Hyprland.">
+<meta name="description" content="Press Super+A, speak, press Super+A again: the text is pasted. Offline Whisper on the graphics card or the CPU, for niri, Sway, Hyprland.">
 <style>
   :root { --bg: #0b0b0c; --fg: #f4f4f5; --dim: #9a9aa2; --line: #26262b; --card: #141417; }
   * { box-sizing: border-box; }
@@ -57,7 +57,7 @@
   <main id="ru" lang="ru">
     <div class="hero">
       <h1>Говори — и текст уже в поле ввода</h1>
-      <p class="lead">Нажми <kbd>Super</kbd>+<kbd>A</kbd>, говори, нажми ещё раз. voicetotextn распознаёт речь без интернета, прямо на процессоре, и вставляет текст туда, где стоит курсор.</p>
+      <p class="lead">Нажми <kbd>Super</kbd>+<kbd>A</kbd>, говори, нажми ещё раз. voicetotextn распознаёт речь без интернета, на видеокарте или процессоре, и вставляет текст туда, где стоит курсор.</p>
       <img class="demo" src="demo.gif" width="640" alt="Плашка выезжает кругом, раскрывается, слушает голос, «дышит» во время распознавания и улетает">
       <div class="buttons">
         <a class="btn solid" href="https://github.com/noutik/voicetotextn/releases">Скачать</a>
@@ -68,7 +68,7 @@
       <h2>Что умеет</h2>
       <div class="grid">
         <div class="card"><h3>Одна клавиша</h3><p>Первое нажатие — запись и маленький эквалайзер сверху экрана. Второе — текст в буфере обмена и в поле ввода.</p></div>
-        <div class="card"><h3>Без интернета</h3><p>Whisper large-v3-turbo через whisper.cpp на CPU. Звук и текст не покидают компьютер.</p></div>
+        <div class="card"><h3>Без интернета</h3><p>Whisper large-v3-turbo через whisper.cpp: на видеокарте, когда она свободна, иначе на CPU. Звук и текст не покидают компьютер.</p></div>
         <div class="card"><h3>Русский и английский вперемешку</h3><p>Маленькая модель выбирает язык, пока ты говоришь. «Запусти Docker Compose» — английские слова остаются латиницей.</p></div>
         <div class="card"><h3>Ничего не висит в памяти</h3><p>Программа стартует по нажатию, модель грузится, пока ты уже говоришь. Слова не теряются.</p></div>
         <div class="card"><h3>Вставка почти везде</h3><p>Буфер обмена + «выделение» + Shift+Insert: браузеры, GTK/Qt, терминалы вроде kitty.</p></div>
@@ -77,8 +77,8 @@
     </section>
     <section>
       <h2>Скорость</h2>
-      <p class="note">От второго нажатия до вставленного текста, Ryzen 7 7800X3D, 8 потоков:</p>
-      <table><tr><th>Речь</th><th>Ожидание</th></tr><tr><td>4–6 с</td><td>~1.3 с</td></tr><tr><td>10–11 с</td><td>~1.5 с</td></tr><tr><td>12–14 с</td><td>~1.8 с</td></tr><tr><td>21 с</td><td>~3.8 с</td></tr><tr><td>29 с</td><td>~5.5 с</td></tr></table>
+      <p class="note">Время распознавания, Radeon RX 9070 XT и Ryzen 7 7800X3D (8 потоков). Ожидание после второго нажатия на 0.25 с больше; на процессоре распознавание начинается на паузе, ещё до клавиши, и пауза перед нажатием вычитается из ожидания:</p>
+      <table><tr><th>Речь</th><th>Видеокарта</th><th>Процессор</th></tr><tr><td>5 с</td><td>0.2–0.4 с</td><td>~1.1 с</td></tr><tr><td>10 с</td><td>0.2–0.4 с</td><td>~1.9 с</td></tr><tr><td>13 с</td><td>0.2–0.4 с</td><td>~2.6 с</td></tr><tr><td>20 с</td><td>0.2–0.4 с</td><td>~4.1 с</td></tr><tr><td>27 с</td><td>0.2–0.4 с</td><td>~6.2 с</td></tr></table>
     </section>
     <section>
       <h2>Установка</h2>
@@ -102,7 +102,7 @@ curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
   <main id="en">
     <div class="hero">
       <h1>Speak, and the text is already in the input field</h1>
-      <p class="lead">Press <kbd>Super</kbd>+<kbd>A</kbd>, speak, press it again. voicetotextn transcribes offline, right on the CPU, and pastes the text where your cursor is.</p>
+      <p class="lead">Press <kbd>Super</kbd>+<kbd>A</kbd>, speak, press it again. voicetotextn transcribes offline, on the graphics card or the CPU, and pastes the text where your cursor is.</p>
       <img class="demo" src="demo.gif" width="640" alt="The overlay slides down as a circle, unfolds, follows the voice, breathes while transcribing and flies away">
       <div class="buttons">
         <a class="btn solid" href="https://github.com/noutik/voicetotextn/releases">Download</a>
@@ -113,7 +113,7 @@ curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
       <h2>Features</h2>
       <div class="grid">
         <div class="card"><h3>One hotkey</h3><p>First press: recording and a small equalizer at the top of the screen. Second press: the text lands in the clipboard and in the input field.</p></div>
-        <div class="card"><h3>Offline</h3><p>Whisper large-v3-turbo through whisper.cpp on the CPU. No audio or text leaves your computer.</p></div>
+        <div class="card"><h3>Offline</h3><p>Whisper large-v3-turbo through whisper.cpp: on the graphics card when it is free, on the CPU otherwise. No audio or text leaves your computer.</p></div>
         <div class="card"><h3>Mixed languages</h3><p>A tiny model picks the language while you speak (Russian or English by default, configurable). English terms inside Russian speech stay in Latin script.</p></div>
         <div class="card"><h3>Nothing in memory</h3><p>Starts on the key press and loads the model while you are already speaking. No words are lost.</p></div>
         <div class="card"><h3>Pastes almost everywhere</h3><p>Clipboard + primary selection + Shift+Insert: browsers, GTK/Qt apps, terminals such as kitty.</p></div>
@@ -122,8 +122,8 @@ curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
     </section>
     <section>
       <h2>Speed</h2>
-      <p class="note">From the second key press to the pasted text, Ryzen 7 7800X3D, 8 threads:</p>
-      <table><tr><th>Speech</th><th>Wait</th></tr><tr><td>4–6 s</td><td>~1.3 s</td></tr><tr><td>10–11 s</td><td>~1.5 s</td></tr><tr><td>12–14 s</td><td>~1.8 s</td></tr><tr><td>21 s</td><td>~3.8 s</td></tr><tr><td>29 s</td><td>~5.5 s</td></tr></table>
+      <p class="note">Transcription time, Radeon RX 9070 XT and Ryzen 7 7800X3D (8 threads). The wait after the second key press is 0.25 s longer; on the CPU the transcription starts at a pause, before the key, and a pause before the press comes off the wait:</p>
+      <table><tr><th>Speech</th><th>Graphics card</th><th>CPU</th></tr><tr><td>5 s</td><td>0.2–0.4 s</td><td>~1.1 s</td></tr><tr><td>10 s</td><td>0.2–0.4 s</td><td>~1.9 s</td></tr><tr><td>13 s</td><td>0.2–0.4 s</td><td>~2.6 s</td></tr><tr><td>20 s</td><td>0.2–0.4 s</td><td>~4.1 s</td></tr><tr><td>27 s</td><td>0.2–0.4 s</td><td>~6.2 s</td></tr></table>
     </section>
     <section>
       <h2>Install</h2>

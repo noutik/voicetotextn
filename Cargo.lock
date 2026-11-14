@@ -446,8 +446,9 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "voicetotextn"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
+ "libc",
  "libpulse-binding",
  "libpulse-simple-binding",
  "rustfft",
@@ -548,6 +549,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2088172d00f936c348d6a72f488dc2660ab3f507263a195df308a3c2383229f6"
 dependencies = [
+ "libc",
  "whisper-rs-sys",
 ]
 
